@@ -51,13 +51,7 @@ proc main() =
         debug("      ", fact.relation.predicate, "(", fact.relation.args[0].value, ")")
 
   echo "Initial state:"
-  dumpState(vm)
-
-  # Process rules
   vm.update()
-
-  # Check result
-  echo "\nAfter update:"
   dumpState(vm)
 
   # Add broken status to egg1
@@ -70,7 +64,7 @@ proc main() =
   vm.update()
 
   # Check final state - egg1 should no longer be breakable
-  echo "\nAfter second update:"
+  echo "\nAdding broken fact to egg1..."
   dumpState(vm)
 
 when isMainModule:
