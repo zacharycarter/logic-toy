@@ -77,10 +77,10 @@ proc splitArgs(argsStr: string): seq[string] =
 # Parse a relation like "predicate(arg1, arg2)" or "predicate[n](arg1, [key]arg2)"
 proc parseRelation*(relStr: string): Relation =
   var result = Relation()
-  debug("Parsing relation: ", relStr)
+  echo("Parsing relation: ", relStr)
 
   # Check for negation
-  if relStr.startsWith("~"):
+  if relStr.startsWith("!"):
     result.isNegated = true
     return parseRelation(relStr[1..^1])
 
