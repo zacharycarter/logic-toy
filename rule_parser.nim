@@ -41,36 +41,41 @@ proc parseTerm(termStr: string, relation: var Relation, argIndex: int): Term =
     echo "    Creating constant: ", termStr
     return Term(kind: tkConstant, value: termStr)
 
-# Helper to split arguments handling annotations
+# Helper to split arguments handling annotations, parentheses, and quotes
 proc splitArgs(argsStr: string): seq[string] =
   result = @[]
   var currentArg = ""
+  var parenDepth = 0
   var bracketDepth = 0
-  var i = 0
+  var inQuote = false
 
-  while i < argsStr.len:
-    let c = argsStr[i]
-
-    if c == ',' and bracketDepth == 0:
+  for c in argsStr:
+    if c == ',' and parenDepth == 0 and bracketDepth == 0 and not inQuote:
       result.add(currentArg.strip())
       currentArg = ""
-    elif c == '[':
+    elif c == '(' and not inQuote:
+      parenDepth += 1
+      currentArg.add(c)
+    elif c == ')' and not inQuote:
+      parenDepth -= 1
+      currentArg.add(c)
+    elif c == '[' and not inQuote:
       bracketDepth += 1
       currentArg.add(c)
-    elif c == ']':
+    elif c == ']' and not inQuote:
       bracketDepth -= 1
+      currentArg.add(c)
+    elif c == '"':
+      inQuote = not inQuote
       currentArg.add(c)
     else:
       currentArg.add(c)
 
-    i += 1
-
-  # Add the last argument
   if currentArg.len > 0:
     result.add(currentArg.strip())
 
 # Parse a relation like "predicate(arg1, arg2)" or "predicate[n](arg1, [key]arg2)"
-proc parseRelation(relStr: string): Relation =
+proc parseRelation*(relStr: string): Relation =
   var result = Relation()
   echo "Parsing relation: ", relStr
 
@@ -131,32 +136,11 @@ proc parseRelation(relStr: string): Relation =
   else:
     result.timeOffset = 0  # Default to current time
 
-  # Parse arguments - handle nested brackets
+  # Parse arguments using the robust splitArgs function
   if argsPart.len > 0:
-    var currentArg = ""
-    var bracketDepth = 0
-    var i = 0
-
-    while i < argsPart.len:
-      let c = argsPart[i]
-
-      if c == ',' and bracketDepth == 0:
-        result.args.add(parseTerm(currentArg.strip(), result, result.args.len))
-        currentArg = ""
-      elif c == '[':
-        bracketDepth += 1
-        currentArg.add(c)
-      elif c == ']':
-        bracketDepth -= 1
-        currentArg.add(c)
-      else:
-        currentArg.add(c)
-
-      i += 1
-
-    # Add the last argument
-    if currentArg.len > 0:
-      result.args.add(parseTerm(currentArg.strip(), result, result.args.len))
+    let args = splitArgs(argsPart)
+    for i, arg in args:
+      result.args.add(parseTerm(arg, result, i))
 
   echo "  Final relation: predicate=", result.predicate,
        " args=", result.args.len,
@@ -164,29 +148,11 @@ proc parseRelation(relStr: string): Relation =
 
   return result
 
+# Split conditions handling nested structures
 proc splitConditions(conditionsStr: string): seq[string] =
-  result = @[]
-  var current = ""
-  var parenDepth = 0
-
-  for c in conditionsStr:
-    if c == '(' and parenDepth == 0:
-      parenDepth += 1
-      current.add(c)
-    elif c == '(' and parenDepth > 0:
-      parenDepth += 1
-      current.add(c)
-    elif c == ')' and parenDepth > 0:
-      parenDepth -= 1
-      current.add(c)
-    elif c == ',' and parenDepth == 0:
-      result.add(current.strip())
-      current = ""
-    else:
-      current.add(c)
-
-  if current.len > 0:
-    result.add(current.strip())
+  # Replace dot notation with commas for condition separation
+  var fixedCondStr = conditionsStr.replace(".", ",")
+  return splitArgs(fixedCondStr)
 
 # Parse a rule like "conclusion :- condition1, condition2."
 proc parseRule*(ruleStr: string): Rule =
