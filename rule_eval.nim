@@ -1,4 +1,4 @@
-import tables, sets,
+import std/[logging, tables, sets],
        vm_types
 
 # Environment for rule evaluation - tracks variables and bindings
@@ -56,44 +56,44 @@ proc matchTerm(term: Term, factTerm: Term, env: var Environment): bool =
 # Match a relation against a fact
 proc matchRelation(relation: Relation, fact: Fact, env: var Environment): bool =
   # Debug output
-  echo "  Matching relation ", relation.predicate, " against fact ", fact.relation.predicate
+  debug("  Matching relation ", relation.predicate, " against fact ", fact.relation.predicate)
 
   # Print arguments
-  echo "  Relation args (", relation.args.len, "):"
+  debug("  Relation args (", relation.args.len, "):")
   for i, arg in relation.args:
     case arg.kind:
     of tkConstant:
-      echo "    ", i, ": Const ", arg.value
+      debug("    ", i, ": Const ", arg.value)
     of tkVariable:
-      echo "    ", i, ": Var ", arg.name
+      debug("    ", i, ": Var ", arg.name)
 
-  echo "  Fact args (", fact.relation.args.len, "):"
+  debug("  Fact args (", fact.relation.args.len, "):")
   for i, arg in fact.relation.args:
     case arg.kind:
     of tkConstant:
-      echo "    ", i, ": Const ", arg.value
+      debug("    ", i, ": Const ", arg.value)
     of tkVariable:
-      echo "    ", i, ": Var ", arg.name
+      debug("    ", i, ": Var ", arg.name)
 
   # Predicate must match
   if relation.predicate != fact.relation.predicate:
-    echo "  Predicates don't match"
+    debug("  Predicates don't match")
     return false
 
   # Arguments must match
   if relation.args.len != fact.relation.args.len:
-    echo "  Argument counts don't match: ", relation.args.len, " vs ", fact.relation.args.len
+    debug("  Argument counts don't match: ", relation.args.len, " vs ", fact.relation.args.len)
     return false
 
   # Match each argument
   var tempEnv = env  # Use temp environment to avoid partial matches
   for i in 0..<relation.args.len:
     if not matchTerm(relation.args[i], fact.relation.args[i], tempEnv):
-      echo "    Arg ", i, " doesn't match"
+      debug("    Arg ", i, " doesn't match")
       return false
 
   # Debug the environment
-  echo "    Match successful! Env: ", tempEnv
+  debug("    Match successful! Env: ", tempEnv)
 
   # Copy successful bindings
   env = tempEnv
@@ -103,14 +103,14 @@ proc matchRelation(relation: Relation, fact: Fact, env: var Environment): bool =
 # # Add these for debugging
 proc evaluateRule*(rule: Rule, currentTime: int, states: seq[State]): seq[Fact] =
   result = @[]
-  echo "Evaluating rule with conclusion: ", rule.conclusion.predicate
+  debug("Evaluating rule with conclusion: ", rule.conclusion.predicate)
 
   # Debug current state
   let stateIndex = currentTime mod states.len
-  echo "Current time: ", currentTime, " using state index: ", stateIndex
-  echo "State contains predicates: "
+  debug("Current time: ", currentTime, " using state index: ", stateIndex)
+  debug("State contains predicates: ")
   for pred, facts in states[stateIndex].facts:
-    echo "  ", pred, ": ", facts.len, " facts"
+    debug("  ", pred, ": ", facts.len, " facts")
 
   # Start with empty environment
   var initialEnv: Environment = @[]
@@ -119,28 +119,28 @@ proc evaluateRule*(rule: Rule, currentTime: int, states: seq[State]): seq[Fact] 
   proc matchConditions(condIndex: int, env: Environment, currTime: int,
                     stateSeq: seq[State]): seq[Environment] =
     if condIndex >= rule.conditions.len:
-      echo "  All conditions matched with env: ", env
+      debug("  All conditions matched with env: ", env)
       return @[env]  # All conditions matched
 
     let condition = rule.conditions[condIndex]
-    echo "  Trying condition[", condIndex, "]: ", condition.predicate,
-         " with ", condition.args.len, " args"
+    debug("  Trying condition[", condIndex, "]: ", condition.predicate,
+         " with ", condition.args.len, " args")
     var matchedEnvs: seq[Environment] = @[]
 
     # Get time offset for this condition
     let timeOffset = condition.timeOffset
     let targetTime = currTime + timeOffset
-    echo "    Target time: ", targetTime
+    debug("    Target time: ", targetTime)
     let stateIndex = targetTime mod stateSeq.len
 
     # Skip if time is out of range
     if targetTime < 0 or stateIndex >= stateSeq.len:
-      echo "    Time out of range"
+      debug("    Time out of range")
       return @[]
 
     # Check if predicate exists
     if not stateSeq[stateIndex].facts.hasKey(condition.predicate):
-      echo "    No facts for predicate: ", condition.predicate
+      debug("    No facts for predicate: ", condition.predicate)
       if condition.isNegated:
         # Negated condition succeeds if predicate doesn't exist
         return matchConditions(condIndex + 1, env, currTime, stateSeq)
@@ -149,25 +149,25 @@ proc evaluateRule*(rule: Rule, currentTime: int, states: seq[State]): seq[Fact] 
 
     # Try to match against each fact
     var anyMatched = false
-    echo "    Examining ", stateSeq[stateIndex].facts[condition.predicate].len, " facts"
+    debug("    Examining ", stateSeq[stateIndex].facts[condition.predicate].len, " facts")
     for fact in stateSeq[stateIndex].facts[condition.predicate]:
       # Skip facts from wrong time
       if fact.time != targetTime:
-        echo "    Skipping fact with wrong time: ", fact.time
+        debug("    Skipping fact with wrong time: ", fact.time)
         continue
 
-      echo "    Trying to match fact: ", fact.relation.predicate
+      debug("    Trying to match fact: ", fact.relation.predicate)
       # Try to match
       var newEnv = env
       if matchRelation(condition, fact, newEnv):
-        echo "      Matched! New env: ", newEnv
+        debug("      Matched! New env: ", newEnv)
         anyMatched = true
         # Continue with next condition
         let nextMatches = matchConditions(condIndex + 1, newEnv, currTime, stateSeq)
         for nextEnv in nextMatches:
           matchedEnvs.add(nextEnv)
       else:
-        echo "      No match"
+        debug("      No match")
 
     # Handle negated conditions
     if condition.isNegated:
@@ -180,7 +180,7 @@ proc evaluateRule*(rule: Rule, currentTime: int, states: seq[State]): seq[Fact] 
 
   # Match all conditions
   let matchedEnvs = matchConditions(0, initialEnv, currentTime, states)
-  echo "Found ", matchedEnvs.len, " matching environments"
+  debug("Found ", matchedEnvs.len, " matching environments")
 
   # For each matching environment, create a new fact
   for env in matchedEnvs:
@@ -206,5 +206,5 @@ proc evaluateRule*(rule: Rule, currentTime: int, states: seq[State]): seq[Fact] 
         newFact.relation.args.add(arg)
 
     # Add fact to results
-    echo "  Creating new fact: ", newFact.relation.predicate
+    debug("  Creating new fact: ", newFact.relation.predicate)
     result.add(newFact)

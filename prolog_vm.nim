@@ -1,4 +1,4 @@
-import std/[tables, sets, hashes, sequtils],
+import std/[logging, tables, sets, hashes, sequtils],
        rule_eval, rule_parser, vm_types
 
 type
@@ -44,10 +44,10 @@ proc addFact*(vm: var VirtualPrologMachine, fact: Fact) =
 
   if not exists:
     vm.states[stateIndex].facts[predicate].add(factToAdd)
-    echo "Added fact: ", factToAdd.relation.predicate, " at time ", factToAdd.time
-    echo "  State[", stateIndex, "] now has ", vm.states[stateIndex].facts.len, " predicates"
+    debug("Added fact: ", factToAdd.relation.predicate, " at time ", factToAdd.time)
+    debug("  State[", stateIndex, "] now has ", vm.states[stateIndex].facts.len, " predicates")
     for pred, facts in vm.states[stateIndex].facts:
-      echo "    ", pred, ": ", facts.len, " facts"
+      debug("    ", pred, ": ", facts.len, " facts")
 
 # Add a rule to the VM
 proc addRule*(vm: var VirtualPrologMachine, rule: Rule) =
@@ -67,17 +67,17 @@ proc deleteOldFacts*(vm: var VirtualPrologMachine) =
   vm.states[nextStateIndex].facts.clear()
   vm.states[nextStateIndex].time = vm.currentTime + 1
 
-  echo "Cleared state[", nextStateIndex, "] for next time step"
+  debug("Cleared state[", nextStateIndex, "] for next time step")
 
 # Main update loop
 proc update*(vm: var VirtualPrologMachine) =
   # Debug state before evaluation
-  echo "Before evaluation at time ", vm.currentTime, ":"
+  debug("Before evaluation at time ", vm.currentTime, ":")
   for i in 0..<vm.states.len:
-    echo "  State[", i, "] time=", vm.states[i].time, " has ",
-         vm.states[i].facts.len, " predicates"
+    debug("  State[", i, "] time=", vm.states[i].time, " has ",
+         vm.states[i].facts.len, " predicates")
     for pred, facts in vm.states[i].facts:
-      echo "    ", pred, ": ", facts.len, " facts"
+      debug("    ", pred, ": ", facts.len, " facts")
 
   # Evaluate rules until no more new facts can be derived
   var numNewFactsDerived = 0

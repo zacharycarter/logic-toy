@@ -1,4 +1,4 @@
-import strutils, sequtils, re,
+import std/[logging, strutils, sequtils, re],
        vm_types
 
 # Process term annotations like [key], [single], [acc]
@@ -14,7 +14,7 @@ proc processAnnotations(term: var Term, annotation: string, relation: var Relati
     discard
 
 proc parseTerm(termStr: string, relation: var Relation, argIndex: int): Term =
-  echo "    Parsing term: ", termStr
+  debug("    Parsing term: ", termStr)
 
   # Check for annotations
   if termStr.startsWith("["):
@@ -23,7 +23,7 @@ proc parseTerm(termStr: string, relation: var Relation, argIndex: int): Term =
       let annotation = termStr[1..<closeBracket]
       let actualTerm = termStr[closeBracket+1..^1].strip()
 
-      echo "    Found annotation: ", annotation, " for term: ", actualTerm
+      debug("    Found annotation: ", annotation, " for term: ", actualTerm)
 
       var result = if actualTerm.len > 0: parseTerm(actualTerm, relation, argIndex)
                    else: Term(kind: tkConstant, value: "")
@@ -34,11 +34,11 @@ proc parseTerm(termStr: string, relation: var Relation, argIndex: int): Term =
   # Basic term parsing
   if termStr.len > 0 and (termStr[0].isUpperAscii() or termStr[0] == '_'):
     # Variables start with uppercase or underscore
-    echo "    Creating variable: ", termStr
+    debug("    Creating variable: ", termStr)
     return Term(kind: tkVariable, name: termStr)
   else:
     # Constants are anything else
-    echo "    Creating constant: ", termStr
+    debug("    Creating constant: ", termStr)
     return Term(kind: tkConstant, value: termStr)
 
 # Helper to split arguments handling annotations, parentheses, and quotes
@@ -77,7 +77,7 @@ proc splitArgs(argsStr: string): seq[string] =
 # Parse a relation like "predicate(arg1, arg2)" or "predicate[n](arg1, [key]arg2)"
 proc parseRelation*(relStr: string): Relation =
   var result = Relation()
-  echo "Parsing relation: ", relStr
+  debug("Parsing relation: ", relStr)
 
   # Check for negation
   if relStr.startsWith("~"):
@@ -106,8 +106,8 @@ proc parseRelation*(relStr: string): Relation =
           break
       i += 1
 
-    echo "  Predicate: ", predicatePart
-    echo "  Args part: ", argsPart
+    debug("  Predicate: ", predicatePart)
+    debug("  Args part: ", argsPart)
 
   # Parse time offset if present
   var timeOffsetStr = ""
@@ -142,9 +142,9 @@ proc parseRelation*(relStr: string): Relation =
     for i, arg in args:
       result.args.add(parseTerm(arg, result, i))
 
-  echo "  Final relation: predicate=", result.predicate,
-       " args=", result.args.len,
-       " timeOffset=", result.timeOffset
+  debug("  Final relation: predicate=", result.predicate,
+        " args=", result.args.len,
+        " timeOffset=", result.timeOffset)
 
   return result
 
@@ -178,7 +178,7 @@ proc parseRule*(ruleStr: string): Rule =
     # Split conditions handling nested parentheses
     let conditions = splitConditions(cleanCondStr)
 
-    echo "Parsed conditions: ", conditions
+    debug("Parsed conditions: ", $conditions)
     for cond in conditions:
       result.conditions.add(parseRelation(cond))
 
