@@ -64,48 +64,18 @@ proc addRuleFromString*(vm: var VirtualPrologMachine, ruleStr: string) =
   let rule = parseRule(ruleStr)
   vm.addRule(rule)
 
-# Delete facts that are too old and prepare for next time step
-proc deleteOldFacts*(vm: var VirtualPrologMachine) =
-  # The next state index (for the future time step) is the one we'll clear
-  let nextStateIndex = (vm.currentTime + 1) mod vm.states.len
-  let currentStateIndex = vm.currentTime mod vm.states.len
-
-  # Clear the state we'll use for the next time step
-  vm.states[nextStateIndex].facts.clear()
-  vm.states[nextStateIndex].time = vm.currentTime + 1
-
-  # Propagate facts with default persistence behavior
-  for predicate, facts in vm.states[currentStateIndex].facts:
-    for fact in facts:
-      # Create a new fact with updated time
-      var newFact = fact
-      newFact.time = vm.currentTime + 1
-
-      # Add the fact to the next state
-      if not vm.states[nextStateIndex].facts.hasKey(predicate):
-        vm.states[nextStateIndex].facts[predicate] = @[]
-
-      # Avoid duplicates
-      let isDuplicate = vm.states[nextStateIndex].facts[predicate].anyIt(
-        it.relation.predicate == newFact.relation.predicate and
-        it.relation.args.len == newFact.relation.args.len and
-        (block:
-          var match = true
-          for i in 0..<it.relation.args.len:
-            if it.relation.args[i] != newFact.relation.args[i]:
-              match = false
-              break
-          match
-        )
-      )
-
-      if not isDuplicate:
-        vm.states[nextStateIndex].facts[predicate].add(newFact)
-
-  debug("Prepared state[", nextStateIndex, "] for next time step with persisted facts")
-
 # Main update loop
 proc update*(vm: var VirtualPrologMachine) =
+  # First, increment the current time
+  vm.currentTime += 1
+
+  # Prepare the current state
+  let stateIndex = vm.currentTime mod vm.states.len
+  vm.states[stateIndex].facts.clear()
+  if len(vm.states[stateIndex].factIndex) > 0:
+    vm.states[stateIndex].factIndex.clear()
+  vm.states[stateIndex].time = vm.currentTime
+
   # Debug state before evaluation
   debug("Before evaluation at time ", vm.currentTime, ":")
   for i in 0..<vm.states.len:
@@ -144,5 +114,4 @@ proc update*(vm: var VirtualPrologMachine) =
   debug("Total new facts derived: ", totalNewFacts, " in ", iteration, " iterations")
 
   # Prepare for next time step
-  vm.deleteOldFacts()
   vm.currentTime += 1

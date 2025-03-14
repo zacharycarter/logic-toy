@@ -66,21 +66,18 @@ proc nodeToString(node: NimNode): string =
     return $node
 
 # Parse a rule definition node
-proc parseRuleBody(ruleBody: NimNode): string =
-  if ruleBody.kind == nnkStmtList and ruleBody.len > 0:
-    let firstStmt = ruleBody[0]
+proc parseRuleBody(ruleBody: NimNode): seq[string] =
+  result = @[]
 
-    # Check if this is a rule with conditions (using :-)
-    if firstStmt.kind == nnkInfix and firstStmt[0].strVal == ":-":
-      let conclusion = nodeToString(firstStmt[1])
-      let conditions = nodeToString(firstStmt[2])
-
-      return conclusion & " :- " & conditions & "."
-    else:
-      # Single fact with no conditions
-      return nodeToString(firstStmt) & "."
-
-  return ""
+  if ruleBody.kind == nnkStmtList:
+    for stmt in ruleBody:
+      if stmt.kind == nnkInfix and stmt[0].strVal == ":-":
+        let conclusion = nodeToString(stmt[1])
+        let conditions = nodeToString(stmt[2])
+        result.add(conclusion & " :- " & conditions & ".")
+      else:
+        # Single fact with no conditions
+        result.add(nodeToString(stmt) & ".")
 
 # Main logicProgram macro
 macro logicProgram*(body: untyped): untyped =
@@ -103,11 +100,12 @@ macro logicProgram*(body: untyped): untyped =
         let ruleName = statement[1]
         let ruleBody = statement[2]
 
-        # Parse rule string
-        let ruleStr = parseRuleBody(ruleBody)
+        # Parse rule strings
+        let ruleStrs = parseRuleBody(ruleBody)
 
-        result.add quote do:
-          `vmName`.addRuleFromString(`ruleStr`)
+        for ruleStr in ruleStrs:
+          result.add quote do:
+            `vmName`.addRuleFromString(`ruleStr`)
 
       # Handle fact definitions with command syntax
       elif cmdName.eqIdent("fact"):

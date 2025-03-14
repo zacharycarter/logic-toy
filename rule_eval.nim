@@ -110,7 +110,7 @@ proc evaluateRule*(rule: Rule, currentTime: int, states: seq[State]): seq[Fact] 
     let stateIndex = targetTime mod stateSeq.len
 
     # Skip if time is out of range
-    if targetTime < 0 or stateIndex >= stateSeq.len:
+    if targetTime <= 0 or targetTime > currTime or stateIndex >= stateSeq.len:
       debug("    Time out of range")
       return @[]
 

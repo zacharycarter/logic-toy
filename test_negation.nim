@@ -2,25 +2,24 @@ import std/[logging, tables, strutils]
 import prolog_vm, dsl, vm_types, rule_parser
 
 # Set up detailed logging
-# addHandler(newConsoleLogger(levelThreshold=lvlDebug))
+addHandler(newFileLogger("out.log", levelThreshold=lvlDebug))
 
 proc dumpState(vm: VirtualPrologMachine) =
   let stateIndex = vm.currentTime mod vm.states.len
   let state = vm.states[stateIndex]
 
-  echo "\n=== Facts at time ", vm.currentTime - 1, ": ==="
+  echo "\n=== Facts at time ", vm.currentTime, ": ==="
   for pred, facts in state.facts:
-    echo "  ", pred, ":"
-    for fact in facts:
-      var argsStr = ""
-      for arg in fact.relation.args:
-        if arg.kind == tkConstant:
-          argsStr.add(arg.value)
-        else:
-          argsStr.add(arg.name)
-        argsStr.add(", ")
-      if argsStr.len > 0: argsStr = argsStr[0..^3]  # Remove trailing ", "
-      echo "    ", fact.relation.predicate, "(", argsStr, ") at time ", fact.time
+    if facts.len > 0:  # Only display if there are facts
+      echo "  ", pred, ":"
+      for fact in facts:
+        var argsStr = ""
+        for arg in fact.relation.args:
+          if arg.kind == tkConstant:
+            argsStr.add(arg.value)
+          else:
+            argsStr.add(arg.name)
+        echo "    ", fact.relation.predicate, "(", argsStr, ")"
 
 proc main() =
   # Create a VM with a simple negation rule
@@ -28,6 +27,9 @@ proc main() =
     # Define rule with negation
     rule testNegation:
       breakable[n](X) :- egg[n](X) . not broken[n](X)
+      # Add explicit persistence rules for base facts
+      egg[n](X) :- egg[n-1](X)
+      broken[n](X) :- broken[n-1](X)
 
     # Add initial facts
     fact egg("egg1")        # An unbroken egg

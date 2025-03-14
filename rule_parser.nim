@@ -139,15 +139,16 @@ proc parseRelation*(relStr: string): Relation =
   result.predicate = predicatePart.strip()
 
   # Set time offset
-  if timeOffsetStr == "n":
+  let cleanTimeOffset = timeOffsetStr.replace(" ", "")  # Remove spaces
+  if cleanTimeOffset == "n":
     result.timeOffset = 0  # Current time
-  elif timeOffsetStr == "n-1":
+  elif cleanTimeOffset == "n-1":
     result.timeOffset = -1  # Previous time
-  elif timeOffsetStr == "n-2":
+  elif cleanTimeOffset == "n-2":
     result.timeOffset = -2  # Two steps back
-  elif timeOffsetStr.len > 0:
+  elif cleanTimeOffset.len > 0:
     try:
-      result.timeOffset = parseInt(timeOffsetStr)
+      result.timeOffset = parseInt(cleanTimeOffset)
     except:
       result.timeOffset = 0  # Default to current time
   else:
