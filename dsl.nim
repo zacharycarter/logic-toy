@@ -51,6 +51,9 @@ proc nodeToString(node: NimNode): string =
     # Handle negated predicates: !pred(...)
     if node[0].strVal == "!":
       return "!" & nodeToString(node[1])
+    else:
+      # Handle other prefixes
+      return node[0].strVal & nodeToString(node[1])
   of nnkPar:
     # Handle parenthesized expressions
     var items = newSeq[string]()

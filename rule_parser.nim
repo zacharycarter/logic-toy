@@ -77,12 +77,29 @@ proc splitArgs(argsStr: string): seq[string] =
 # Parse a relation like "predicate(arg1, arg2)" or "predicate[n](arg1, [key]arg2)"
 proc parseRelation*(relStr: string): Relation =
   var result = Relation()
-  echo("Parsing relation: ", relStr)
+  debug("Parsing relation: ", relStr)
 
   # Check for negation
   if relStr.startsWith("!"):
     result.isNegated = true
-    return parseRelation(relStr[1..^1])
+    # Create a new relation string without the '!'
+    let nonNegatedStr = relStr[1..^1]
+    debug("Negated relation, processing: ", nonNegatedStr)
+
+    # Parse the non-negated part
+    var nonNegated = parseRelation(nonNegatedStr)
+
+    # Copy properties from non-negated relation
+    result.predicate = nonNegated.predicate
+    result.args = nonNegated.args
+    result.timeOffset = nonNegated.timeOffset
+    result.keyArgIndices = nonNegated.keyArgIndices
+    result.singleArgIndices = nonNegated.singleArgIndices
+    result.accArgIndices = nonNegated.accArgIndices
+
+    debug("Created negated relation: predicate=", result.predicate,
+          " isNegated=", result.isNegated)
+    return result
 
   # Extract predicate name and time offset
   var predicatePart = relStr

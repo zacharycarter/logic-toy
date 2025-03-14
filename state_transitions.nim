@@ -44,10 +44,13 @@ proc main() =
     rule breakEgg:
       broken[n](X) :- breakable[n-1](X) . brk[n-1](X)
 
+    # Manual state persistence rules
     rule persistence:
       # States persist unless changed
       egg[n](X) :- egg[n-1](X) . alive[n-1](X)
       broken[n](X) :- broken[n-1](X) . alive[n-1](X)
+      # All eggs are alive by default
+      alive[n](X) :- egg[n](X)
 
     # Actions that cause state changes
     rule playerInteractions:
@@ -56,6 +59,7 @@ proc main() =
     # Initial facts
     fact egg("egg1")
     fact player("player1")
+    fact alive("egg1")
 
   # Initialize the world
   echo "Initial state:"

@@ -1,4 +1,4 @@
-import std/tables
+import std/[sets, tables]
 
 # Basic term and constant types
 type
@@ -39,6 +39,7 @@ type
   State* = object
     facts*: Table[string, seq[Fact]]
     time*: int
+    factIndex*: Table[string, HashSet[string]]  # Maps predicate+arg hash to fact existence
 
 # Equality comparison for Term
 proc `==`*(a, b: Term): bool =
@@ -75,3 +76,12 @@ proc `==`*(a, b: Relation): bool =
 # Equality comparison for Fact
 proc `==`*(a, b: Fact): bool =
   return a.relation == b.relation and a.time == b.time
+
+proc factHash*(fact: Fact): string =
+  result = fact.relation.predicate
+  for arg in fact.relation.args:
+    case arg.kind:
+    of tkConstant:
+      result.add(":" & arg.value)
+    of tkVariable:
+      result.add(":" & arg.name)

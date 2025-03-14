@@ -39,15 +39,21 @@ proc addFact*(vm: var VirtualPrologMachine, fact: Fact) =
   if factToAdd.time == -1:
     factToAdd.time = vm.currentTime
 
-  # Check if fact already exists
-  let exists = vm.states[stateIndex].facts[predicate].anyIt(it == factToAdd)
+  # Generate hash for quick lookup
+  let factKey = factHash(factToAdd)
 
-  if not exists:
+  # Check for duplicate using the hash index
+  if not vm.states[stateIndex].factIndex.hasKey(predicate) or
+     not vm.states[stateIndex].factIndex[predicate].contains(factKey):
+    # Add to main storage
     vm.states[stateIndex].facts[predicate].add(factToAdd)
+
+    # Add to index
+    if not vm.states[stateIndex].factIndex.hasKey(predicate):
+      vm.states[stateIndex].factIndex[predicate] = initHashSet[string]()
+    vm.states[stateIndex].factIndex[predicate].incl(factKey)
+
     debug("Added fact: ", factToAdd.relation.predicate, " at time ", factToAdd.time)
-    debug("  State[", stateIndex, "] now has ", vm.states[stateIndex].facts.len, " predicates")
-    for pred, facts in vm.states[stateIndex].facts:
-      debug("    ", pred, ": ", facts.len, " facts")
 
 # Add a rule to the VM
 proc addRule*(vm: var VirtualPrologMachine, rule: Rule) =
@@ -62,12 +68,41 @@ proc addRuleFromString*(vm: var VirtualPrologMachine, ruleStr: string) =
 proc deleteOldFacts*(vm: var VirtualPrologMachine) =
   # The next state index (for the future time step) is the one we'll clear
   let nextStateIndex = (vm.currentTime + 1) mod vm.states.len
+  let currentStateIndex = vm.currentTime mod vm.states.len
 
   # Clear the state we'll use for the next time step
   vm.states[nextStateIndex].facts.clear()
   vm.states[nextStateIndex].time = vm.currentTime + 1
 
-  debug("Cleared state[", nextStateIndex, "] for next time step")
+  # Propagate facts with default persistence behavior
+  for predicate, facts in vm.states[currentStateIndex].facts:
+    for fact in facts:
+      # Create a new fact with updated time
+      var newFact = fact
+      newFact.time = vm.currentTime + 1
+
+      # Add the fact to the next state
+      if not vm.states[nextStateIndex].facts.hasKey(predicate):
+        vm.states[nextStateIndex].facts[predicate] = @[]
+
+      # Avoid duplicates
+      let isDuplicate = vm.states[nextStateIndex].facts[predicate].anyIt(
+        it.relation.predicate == newFact.relation.predicate and
+        it.relation.args.len == newFact.relation.args.len and
+        (block:
+          var match = true
+          for i in 0..<it.relation.args.len:
+            if it.relation.args[i] != newFact.relation.args[i]:
+              match = false
+              break
+          match
+        )
+      )
+
+      if not isDuplicate:
+        vm.states[nextStateIndex].facts[predicate].add(newFact)
+
+  debug("Prepared state[", nextStateIndex, "] for next time step with persisted facts")
 
 # Main update loop
 proc update*(vm: var VirtualPrologMachine) =
@@ -80,27 +115,33 @@ proc update*(vm: var VirtualPrologMachine) =
       debug("    ", pred, ": ", facts.len, " facts")
 
   # Evaluate rules until no more new facts can be derived
-  var numNewFactsDerived = 0
-  var trial = 0
+  var totalNewFacts = 0
+  var iteration = 0
+  const maxIterations = 10  # Avoid infinite loops
 
-  # Try to derive new facts
-  while true:
-    numNewFactsDerived = 0
+  while iteration < maxIterations:
+    var numNewFactsDerived = 0
+
+    # Evaluate each rule
     for rule in vm.rules:
-      if trial < rule.maxEvalCountPerTime:
-        let newFacts = evaluateRule(rule, vm.currentTime, vm.states)
-        for fact in newFacts:
-          # Check if fact already exists
-          let stateIndex = vm.currentTime mod vm.states.len
-          let predicate = fact.relation.predicate
+      let newFacts = evaluateRule(rule, vm.currentTime, vm.states)
+      for fact in newFacts:
+        # Check if fact already exists
+        let stateIndex = vm.currentTime mod vm.states.len
+        let predicate = fact.relation.predicate
 
-          if not vm.states[stateIndex].facts.hasKey(predicate) or
-             not vm.states[stateIndex].facts[predicate].anyIt(it == fact):
-            vm.addFact(fact)
-            numNewFactsDerived += 1
-    trial += 1
-    if not (numNewFactsDerived > 0 and trial < 100):  # Limit iterations
+        if not vm.states[stateIndex].facts.hasKey(predicate) or
+           not vm.states[stateIndex].facts[predicate].anyIt(it == fact):
+          vm.addFact(fact)
+          numNewFactsDerived += 1
+
+    totalNewFacts += numNewFactsDerived
+    iteration += 1
+
+    if numNewFactsDerived == 0:
       break
+
+  debug("Total new facts derived: ", totalNewFacts, " in ", iteration, " iterations")
 
   # Prepare for next time step
   vm.deleteOldFacts()
