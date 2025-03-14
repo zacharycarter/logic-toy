@@ -5,6 +5,8 @@ import vm_types, rule_parser, prolog_vm
 proc nodeToString(node: NimNode): string =
   case node.kind
   of nnkIdent:
+    if node.strVal == "not":
+      return "!"
     return node.strVal
   of nnkStrLit..nnkTripleStrLit:
     return node.strVal
@@ -33,7 +35,7 @@ proc nodeToString(node: NimNode): string =
       let target = nodeToString(node[1])
       return annotation & target
     else:
-      return nodeToString(node[0]) & " " & nodeToString(node[1])
+      return nodeToString(node[0]) & nodeToString(node[1])
   of nnkBracket:
     # Handle [key], [single], etc.
     var annots = newSeq[string]()
@@ -79,6 +81,7 @@ proc parseRuleBody(ruleBody: NimNode): string =
 
 # Main logicProgram macro
 macro logicProgram*(body: untyped): untyped =
+  echo treeRepr body
   result = newStmtList()
 
   # Create VM instance
@@ -134,6 +137,8 @@ macro logicProgram*(body: untyped): untyped =
   # Return the VM
   result.add quote do:
     `vmName`
+
+  echo repr result
 
 # Helper to create vec2 values
 proc vec2*(x, y: int): string =
