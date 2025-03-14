@@ -80,7 +80,7 @@ proc parseRelation*(relStr: string): Relation =
   echo "Parsing relation: ", relStr
 
   # Check for negation
-  if relStr.startsWith("!"):
+  if relStr.startsWith("~"):
     result.isNegated = true
     return parseRelation(relStr[1..^1])
 
