@@ -1,37 +1,62 @@
 import prolog_vm, dsl, vm_types, rule_parser
-import std/tables
+import std/[logging, strutils, tables]
+
+# Set up detailed logging
+addHandler(newFileLogger("out.log", levelThreshold=lvlDebug))
 
 proc dumpState(vm: VirtualPrologMachine) =
-  let stateIndex = vm.currentTime mod vm.states.len
-  let state = vm.states[stateIndex]
+  # Find the state that contains our current time's facts
+  var displayState: State
+  var displayTime = vm.currentTime - 1  # We want previous time for most recent facts
 
-  # Check egg state
-  if "egg" in state.facts:
-    echo "Eggs:"
-    for fact in state.facts["egg"]:
-      let eggId = fact.relation.args[0].value
-      var status = "normal"
+  # Find the state with our facts
+  for i in 0..<vm.states.len:
+    if vm.states[i].time == displayTime:
+      displayState = vm.states[i]
 
-      # Check if egg is broken
-      if "broken" in state.facts:
-        for brokenFact in state.facts["broken"]:
-          if brokenFact.relation.args[0].value == eggId:
-            status = "broken"
+  echo "\n=== Facts at time ", displayTime, ": ==="
+  for pred, facts in displayState.facts:
+    if facts.len > 0:  # Only display if there are facts
+      echo "  ", pred, ":"
+      for fact in facts:
+        var argsStr: seq[string] = @[]
+        for arg in fact.relation.args:
+          if arg.kind == tkConstant:
+            argsStr.add(arg.value)
+          else:
+            argsStr.add(arg.name)
+        echo "    ", argsStr.join(" . ")
+# proc dumpState(vm: VirtualPrologMachine) =
+#   let stateIndex = vm.currentTime mod vm.states.len
+#   let state = vm.states[stateIndex]
 
-      # Check if egg is breakable
-      var isBreakable = false
-      if "breakable" in state.facts:
-        for breakableFact in state.facts["breakable"]:
-          if breakableFact.relation.args[0].value == eggId:
-            isBreakable = true
+#   # Check egg state
+#   if "egg" in state.facts:
+#     echo "Eggs:"
+#     for fact in state.facts["egg"]:
+#       let eggId = fact.relation.args[0].value
+#       var status = "normal"
 
-      echo "  ", eggId, " - Status: ", status, " (Breakable: ", isBreakable, ")"
+#       # Check if egg is broken
+#       if "broken" in state.facts:
+#         for brokenFact in state.facts["broken"]:
+#           if brokenFact.relation.args[0].value == eggId:
+#             status = "broken"
 
-  # Show recent interactions
-  if "touch" in state.facts:
-    echo "Recent interactions:"
-    for fact in state.facts["touch"]:
-      echo "  ", fact.relation.args[0].value, " touched ", fact.relation.args[1].value
+#       # Check if egg is breakable
+#       var isBreakable = false
+#       if "breakable" in state.facts:
+#         for breakableFact in state.facts["breakable"]:
+#           if breakableFact.relation.args[0].value == eggId:
+#             isBreakable = true
+
+#       echo "  ", eggId, " - Status: ", status, " (Breakable: ", isBreakable, ")"
+
+#   # Show recent interactions
+#   if "touch" in state.facts:
+#     echo "Recent interactions:"
+#     for fact in state.facts["touch"]:
+#       echo "  ", fact.relation.args[0].value, " touched ", fact.relation.args[1].value
 
 proc main() =
   # Create a VM with logic for state transitions
@@ -47,10 +72,10 @@ proc main() =
     # Manual state persistence rules
     rule persistence:
       # States persist unless changed
-      egg[n](X) :- egg[n-1](X) . alive[n-1](X)
-      broken[n](X) :- broken[n-1](X) . alive[n-1](X)
-      # All eggs are alive by default
-      alive[n](X) :- egg[n](X)
+      egg[n](X) :- egg[n-1](X) . egg[n-1](X)
+      broken[n](X) :- broken[n-1](X) . egg[n-1](X)
+      egg[n](X) :- egg[n](X)
+      player[n](X) :- player[n-1](X)
 
     # Actions that cause state changes
     rule playerInteractions:
@@ -59,11 +84,13 @@ proc main() =
     # Initial facts
     fact egg("egg1")
     fact player("player1")
-    fact alive("egg1")
 
   # Initialize the world
   echo "Initial state:"
   echo "-------------"
+  # Update VM
+  vm.update()
+
   dumpState(vm)
 
   # Simulate touch event

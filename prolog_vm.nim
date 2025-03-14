@@ -17,27 +17,28 @@ proc newVirtualPrologMachine*(lookbackWindow: int = 2): VirtualPrologMachine =
     rules: @[]
   )
 
-  # Initialize states based on lookback window
   result.states = newSeq[State](lookbackWindow)
   for i in 0..<lookbackWindow:
     result.states[i] = State(
-      time: 0,  # Set initial time to 0 for all states
-      facts: initTable[string, seq[Fact]]()
+      time: -i,  # Time 0, -1, -2, etc.
+      facts: initTable[string, seq[Fact]](),
+      factIndex: initTable[string, HashSet[string]]()
     )
 
 # Add fact to the current state
 proc addFact*(vm: var VirtualPrologMachine, fact: Fact) =
-  let stateIndex = vm.currentTime mod vm.states.len
-  let predicate = fact.relation.predicate
+  # First set the fact's time if not explicitly set
+  var factToAdd = fact
+  if factToAdd.time == -1:
+    factToAdd.time = vm.currentTime
+
+  # Then determine which state to add it to
+  let stateIndex = factToAdd.time mod vm.states.len
+  let predicate = factToAdd.relation.predicate
 
   # Initialize the predicate's fact list if needed
   if not vm.states[stateIndex].facts.hasKey(predicate):
     vm.states[stateIndex].facts[predicate] = @[]
-
-  # Set the fact's time if not explicitly set
-  var factToAdd = fact
-  if factToAdd.time == -1:
-    factToAdd.time = vm.currentTime
 
   # Generate hash for quick lookup
   let factKey = factHash(factToAdd)
@@ -66,16 +67,6 @@ proc addRuleFromString*(vm: var VirtualPrologMachine, ruleStr: string) =
 
 # Main update loop
 proc update*(vm: var VirtualPrologMachine) =
-  # First, increment the current time
-  vm.currentTime += 1
-
-  # Prepare the current state
-  let stateIndex = vm.currentTime mod vm.states.len
-  vm.states[stateIndex].facts.clear()
-  if len(vm.states[stateIndex].factIndex) > 0:
-    vm.states[stateIndex].factIndex.clear()
-  vm.states[stateIndex].time = vm.currentTime
-
   # Debug state before evaluation
   debug("Before evaluation at time ", vm.currentTime, ":")
   for i in 0..<vm.states.len:
@@ -113,5 +104,12 @@ proc update*(vm: var VirtualPrologMachine) =
 
   debug("Total new facts derived: ", totalNewFacts, " in ", iteration, " iterations")
 
-  # Prepare for next time step
+  # Increment time AFTER evaluation
   vm.currentTime += 1
+
+  # Now prepare the NEXT state for the next update cycle
+  let nextStateIndex = vm.currentTime mod vm.states.len
+  vm.states[nextStateIndex].facts.clear()
+  if len(vm.states[nextStateIndex].factIndex) > 0:
+    vm.states[nextStateIndex].factIndex.clear()
+  vm.states[nextStateIndex].time = vm.currentTime

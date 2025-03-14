@@ -5,11 +5,17 @@ import prolog_vm, dsl, vm_types, rule_parser
 addHandler(newFileLogger("out.log", levelThreshold=lvlDebug))
 
 proc dumpState(vm: VirtualPrologMachine) =
-  let stateIndex = vm.currentTime mod vm.states.len
-  let state = vm.states[stateIndex]
+  # Find the state that contains our current time's facts
+  var displayState: State
+  var displayTime = vm.currentTime - 1  # We want previous time for most recent facts
 
-  echo "\n=== Facts at time ", vm.currentTime, ": ==="
-  for pred, facts in state.facts:
+  # Find the state with our facts
+  for i in 0..<vm.states.len:
+    if vm.states[i].time == displayTime:
+      displayState = vm.states[i]
+
+  echo "\n=== Facts at time ", displayTime, ": ==="
+  for pred, facts in displayState.facts:
     if facts.len > 0:  # Only display if there are facts
       echo "  ", pred, ":"
       for fact in facts:
@@ -35,6 +41,14 @@ proc main() =
     fact egg("egg1")        # An unbroken egg
     fact egg("egg2")        # A broken egg
     fact broken("egg2")
+
+  debug("STATE DUMP AFTER ADDING FACTS:")
+  for i in 0..<vm.states.len:
+    debug("  State[", i, "] time=", vm.states[i].time)
+    for pred, facts in vm.states[i].facts:
+      debug("    ", pred, ": ", facts.len, " facts")
+      for fact in facts:
+        debug("      ", fact.relation.predicate, "(", fact.relation.args[0].value, ")")
 
   echo "Initial state:"
   dumpState(vm)

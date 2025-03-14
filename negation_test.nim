@@ -2,25 +2,27 @@ import prolog_vm, dsl, vm_types, rule_parser
 import std/[logging, tables]
 
 proc dumpState(vm: VirtualPrologMachine) =
-  let stateIndex = vm.currentTime mod vm.states.len
-  let state = vm.states[stateIndex]
+  # Find the state that contains our current time's facts
+  var displayState: State
+  var displayTime = vm.currentTime - 1  # We want previous time for most recent facts
 
-  echo "Facts at time ", vm.currentTime - 1, ":"
-  for pred, facts in state.facts:
-    echo "  ", pred, ":"
-    for fact in facts:
-      var args = ""
-      for arg in fact.relation.args:
-        args.add(if arg.kind == tkConstant: arg.value else: arg.name)
-        args.add(", ")
-      if args.len > 0: args = args[0..^3]  # Remove trailing ", "
-      echo "    ", fact.relation.predicate, "(", args, ") at time ", fact.time
+  # Find the state with our facts
+  for i in 0..<vm.states.len:
+    if vm.states[i].time == displayTime:
+      displayState = vm.states[i]
 
-  # Test specifically for breakable property
-  if "breakable" in state.facts:
-    echo "Breakable objects:"
-    for fact in state.facts["breakable"]:
-      echo "  ", fact.relation.args[0].value
+  echo "\n=== Facts at time ", displayTime, ": ==="
+  for pred, facts in displayState.facts:
+    if facts.len > 0:  # Only display if there are facts
+      echo "  ", pred, ":"
+      for fact in facts:
+        var argsStr = ""
+        for arg in fact.relation.args:
+          if arg.kind == tkConstant:
+            argsStr.add(arg.value)
+          else:
+            argsStr.add(arg.name)
+        echo "    ", fact.relation.predicate, "(", argsStr, ")"
 
 proc main() =
   # Create a simple VM with negation test
@@ -28,11 +30,14 @@ proc main() =
     # Test rule with negation
     rule testNegation:
       breakable[n](X) :- egg[n](X) . not broken[n](X)
+      # Add explicit persistence rules for base facts
+      egg[n](X) :- egg[n-1](X)
+      broken[n](X) :- broken[n-1](X)
 
     # Simple fact rules
     fact egg("egg1")
-    fact broken("egg2")
     fact egg("egg2")
+    fact broken("egg2")
 
   # Initialize the world
   echo "Initial state:"

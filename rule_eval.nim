@@ -107,11 +107,17 @@ proc evaluateRule*(rule: Rule, currentTime: int, states: seq[State]): seq[Fact] 
     let timeOffset = condition.timeOffset
     let targetTime = currTime + timeOffset
     debug("    Target time: ", targetTime)
-    let stateIndex = targetTime mod stateSeq.len
+    let stateTime = targetTime
+    var stateIndex = -1
+    for i in 0..<stateSeq.len:
+      if stateSeq[i].time == stateTime:
+        stateIndex = i
+        break
+    debug("    Looking for state with time=", stateTime, " found at index ", stateIndex)
 
-    # Skip if time is out of range
-    if targetTime <= 0 or targetTime > currTime or stateIndex >= stateSeq.len:
-      debug("    Time out of range")
+    # Skip if stateIndex is out of range
+    if stateIndex >= stateSeq.len or stateIndex < 0:
+      debug("    State index out of range")
       return @[]
 
     # Check if predicate exists
